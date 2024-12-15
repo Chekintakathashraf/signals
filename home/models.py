@@ -133,3 +133,37 @@ while fetching each data init will work each time. how many data that much it wo
 
 
 """
+
+from PIL import Image
+import os
+from django.conf import settings
+
+
+
+class ImageModel(models.Model):
+    original_image = models.ImageField(upload_to="images/")
+    thumbnail_small = models.ImageField(upload_to="thumbnails/", null=True, blank=True)
+    thumbnail_medium = models.ImageField(upload_to="thumbnails/", null=True, blank=True)
+    thumbnail_large = models.ImageField(upload_to="thumbnails/", null=True, blank=True)
+
+@receiver(post_save, sender=ImageModel)
+def create_thumbnails(sender, instance, created, **kwargs):
+    if created:
+        sizes = {
+            "thumbnail_small": (100, 100),
+            "thumbnail_medium": (300, 300),
+            "thumbnail_large": (600, 600),
+        }
+        
+        for field, size in sizes.items():
+            img = Image.open(instance.original_image.path)
+            img.thumbnail(size, Image.Resampling.LANCZOS)
+            base_name, ext = os.path.splitext(os.path.basename(instance.original_image.name))
+            thumb_filename = f"{base_name}_{size[0]}x{size[1]}{ext}"
+            thumb_dir = os.path.join(settings.MEDIA_ROOT, "thumbnails")
+            thumb_path = os.path.join(thumb_dir, thumb_filename)
+            os.makedirs(thumb_dir, exist_ok=True)
+            img.save(thumb_path)
+            setattr(instance, field, f"thumbnails/{thumb_filename}")
+        instance.save()
+            
